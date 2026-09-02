@@ -1482,7 +1482,12 @@ async function generatePDF(){
         doc.text(c.t2[0], x+c.w/2, yy+10, {align:'center'});
         doc.text(c.t2[1], x+c.w/2, yy+19, {align:'center'});
       } else {
-        doc.setFont('helvetica','bold'); doc.setFontSize(8.2); doc.setTextColor(255);
+        doc.setFont('helvetica','bold'); doc.setTextColor(255);
+        // Réduit la taille si le libellé (ex: "OCCASION") est trop large pour la colonne,
+        // pour garder un espace propre entre le texte et les bordures.
+        let fs = 8.2;
+        doc.setFontSize(fs);
+        while(fs > 6 && doc.getTextWidth(c.t) > c.w - 6){ fs -= 0.2; doc.setFontSize(fs); }
         doc.text(c.t, x+c.w/2, yy+15.5, {align:'center'});
       }
       x += c.w;
@@ -1788,15 +1793,18 @@ async function generatePDF(){
     });
     y += headH + bodyH;
   }
-  if(y + 84 > MAXY) y = newPage();
+  if(y + 90 > MAXY) y = newPage();
   sigTable(state.signatures.receptionLoxam, state.signatures.receptionClient);
-  y += 6;
+  y += 16;
 
   if(!estSortant()){
     doc.setFont('helvetica','bolditalic'); doc.setFontSize(9.5);
     const par2 = doc.splitTextToSize('En conséquence, le présent proces verbal de réception a été établi sous réserve de tous recours en responsabilité pour vice ou défauts cachés pouvant se manifester par la suite.', CW-30);
+    const par2H = par2.length*11.5 + 5;
+    // Vérifie la place AVANT de dessiner le paragraphe, pour ne jamais le couper en bas de page
+    if(y + par2H > MAXY) y = newPage();
     par2.forEach((ln,i)=> doc.text(ln, W/2, y+i*11.5, {align:'center'}));
-    y += par2.length*11.5 + 5;
+    y += par2H;
 
     if(y + 90 > MAXY) y = newPage();
     doc.setDrawColor(30); doc.setLineWidth(0.8);
@@ -1806,6 +1814,7 @@ async function generatePDF(){
     doc.text('Levées de Réserve :', M+6, y+11);
     y += 17;
     sigTable(state.signatures.leveeLoxam, state.signatures.leveeClient);
+    y += 10;
   }
 
   // Mention SAV (pas sur un état des lieux sortant)
