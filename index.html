@@ -768,12 +768,17 @@ function renderInfoSection(){
     return el('div',{class:'field'}, el('label','Conducteur de travaux'), sel);
   })());
   infoGrid.append((()=>{
-    const sel = el('select',{onchange:(e)=>{ state.meta.sousTraitant=e.target.value; syncSousTraitant(); renderAll(); }});
-    sel.append(el('option',{value:''},'\u2014'));
-    SOUS_TRAITANTS.forEach(o=> sel.append(el('option',{value:o, ...(state.meta.sousTraitant===o?{selected:'selected'}:{})}, o)));
-    if(state.meta.sousTraitant && !SOUS_TRAITANTS.includes(state.meta.sousTraitant))
-      sel.append(el('option',{value:state.meta.sousTraitant, selected:'selected'}, state.meta.sousTraitant));
-    return el('div',{class:'field'}, el('label','Sous-traitant présent'), sel);
+    // Champ libre (saisie manuelle) + suggestions issues de SOUS_TRAITANTS si la liste est renseignée.
+    const inp = el('input',{type:'text', list:'sous-traitants-list', value:state.meta.sousTraitant,
+      oninput:(e)=>{ state.meta.sousTraitant=e.target.value; },
+      onchange:()=>{ syncSousTraitant(); renderAll(); }});
+    const field = el('div',{class:'field'}, el('label','Sous-traitant présent'), inp);
+    if(SOUS_TRAITANTS.length){
+      const dl = el('datalist',{id:'sous-traitants-list'});
+      SOUS_TRAITANTS.forEach(o=> dl.append(el('option',{value:o})));
+      field.append(dl);
+    }
+    return field;
   })());
   infoGrid.append((()=>{
     const sel = el('select',{onchange:(e)=>{ state.meta.civilite=e.target.value; }});
