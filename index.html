@@ -1593,7 +1593,8 @@ async function generatePDF(){
   infoPair('Réf. commande', state.meta.refCommande, 'Conducteur de travaux', state.meta.conducteur);
   infoPair('Nombre de modules', state.meta.nbModules, 'Sous-traitant présent', state.meta.sousTraitant);
   infoPair('Représentant client présent', ((state.meta.civilite? state.meta.civilite+' ' : '') + (state.meta.representant||'')).trim(), 'Tél', state.meta.tel);
-  y += 6;
+  infoPair('Email de contact', state.meta.email, null, null);
+  y += 16;
 
   // Chapitres 1 & 2 (smileys)
   const colsSmiley = estSortant() ? [
@@ -1736,14 +1737,20 @@ async function generatePDF(){
     chapTitle('5. Réserves éventuelles'); y += 18;
     const reserves = (state.reserves.lignes || []).map(t=> String(t||'').trim()).filter(Boolean);
     if(reserves.length){
+      // Chaque réserve dans un encadré teinté (même code couleur que l'encadré SAV) pour mieux ressortir
       doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(17,24,39);
       reserves.forEach(t=>{
-        const parts = doc.splitTextToSize(t, CW - 18);
+        const parts = doc.splitTextToSize(t, CW - 34);
         const h = parts.length*12 + 5;
-        if(y + h > MAXY) y = newPage();
-        doc.text('-', M + 3, y);
-        doc.text(parts, M + 14, y);
-        y += h;
+        const boxH = h + 8;
+        if(y + boxH > MAXY) y = newPage();
+        doc.setFillColor(252,242,244); doc.setDrawColor(RED[0],RED[1],RED[2]); doc.setLineWidth(0.7);
+        doc.roundedRect(M, y - 9, CW, boxH, 5, 5, 'FD');
+        doc.setFont('helvetica','bold'); doc.setTextColor(RED[0],RED[1],RED[2]);
+        doc.text('!', M + 10, y);
+        doc.setFont('helvetica','normal'); doc.setTextColor(17,24,39);
+        doc.text(parts, M + 22, y);
+        y += boxH + 6;
       });
     } else {
       doc.setFont('helvetica','italic'); doc.setFontSize(9); doc.setTextColor(140,130,118);
@@ -1755,6 +1762,9 @@ async function generatePDF(){
 
   if(!estSortant()){
   doc.setFont('helvetica','bolditalic'); doc.setFontSize(9.5);
+  // Réserve la place pour ce bloc (texte sur 1-2 lignes + cases à cocher) avant de le dessiner,
+  // pour ne jamais le couper en bas de page (même défaut que "En conséquence" corrigé plus haut).
+  if(y + 40 > MAXY) y = newPage();
   doc.text("En cas de vente, la notice d'entretien et de maintenance est remise au client.", M, y, {maxWidth:326});
   const wNC = doc.getTextWidth('Non concerné');
   const xNC = W - M - wNC - 16;
@@ -1819,7 +1829,7 @@ async function generatePDF(){
     doc.text('Levées de Réserve :', M+6, y+11);
     y += 17;
     sigTable(state.signatures.leveeLoxam, state.signatures.leveeClient);
-    y += 10;
+    y += 18;
   }
 
   // Mention SAV (pas sur un état des lieux sortant)
