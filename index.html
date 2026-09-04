@@ -427,7 +427,7 @@ const ELECTRO_ITEMS = ['Électroménager'];
 const ELECTRO_OPTS = [ {v:'livre', l:'Livré'}, {v:'non_livre', l:'Non livré'} ];
 
 const state = {
-  meta:{ type:'reception', numAff:'', date:'', client:'', chantier:'', refCommande:'', nbModules:'', conducteur:'', sousTraitant:'', representant:'', civilite:'', email:'', tel:'' },
+  meta:{ type:'reception', numAff:'', date:'', client:'', chantier:'', refCommande:'', nbModules:'', conducteur:'', sousTraitant:'', representant:'', civilite:'', email:'', tel:'', leveeApplicable:true },
   checklist:{},
   cles:{ remises:'', rendues:'' },
   mobilier:{},
@@ -480,6 +480,7 @@ async function loadDraft(){
       ELECTRO_ITEMS.forEach(i=>{ if(!state.mobilier[i]) state.mobilier[i] = { qty:'', statuses:[], obs:'', photos:[] }; });
       if(state.meta.type==='levee') state.meta.type='';   // type retiré
       if(state.meta.email===undefined) state.meta.email='';
+      if(state.meta.leveeApplicable===undefined) state.meta.leveeApplicable=true;
       if(state.devis.email===undefined) state.devis.email = state.meta.email || '';
       if(state.devis.remise===undefined) state.devis.remise='';
       if(!state.devis.descriptif) state.devis.descriptif = 'Refacturation pour dommages constat\u00e9s lors de la restitution des modules';
@@ -636,6 +637,7 @@ function renderChecklistItem(key, storeObj, showQty, opts){
   // Pour les chapitres à smiley : les cases "Avec/Sans réserve" ne s'affichent
   // que si le smiley "pas content" (nok) est sélectionné.
   const aSmiley = (opts||STATUS_OPTS).some(o=> o.v==='ok' || o.v==='nok');
+  const aOccasion = (opts||STATUS_OPTS).some(o=> o.v==='neuf' || o.v==='occasion');
   let optsAffichees = opts;
   if(aSmiley && !estSortant()){
     if(data.statuses.includes('nok')){
@@ -645,12 +647,21 @@ function renderChecklistItem(key, storeObj, showQty, opts){
       // si on repasse au content, on retire toute réserve précédemment cochée
       data.statuses = data.statuses.filter(x=> x!=='avec_reserve' && x!=='sans_reserve');
     }
+  } else if(aOccasion && !estSortant()){
+    // Chapitre 3 (mobilier) : "Avec/Sans réserve" uniquement si "Occasion" est coché.
+    if(data.statuses.includes('occasion')){
+      optsAffichees = opts;
+    } else {
+      optsAffichees = opts.filter(o=> o.v!=='avec_reserve' && o.v!=='sans_reserve');
+      // si on repasse à "Neuf" (ou rien), on retire toute réserve précédemment cochée
+      data.statuses = data.statuses.filter(x=> x!=='avec_reserve' && x!=='sans_reserve');
+    }
   }
   item.append(statusCheckRow('r-'+key.replace(/\W/g,'_'), data.statuses, (v, on)=>{
     if(on){ if(!data.statuses.includes(v)) data.statuses.push(v); }
     else { data.statuses = data.statuses.filter(x=>x!==v); }
     // Recalcule l'affichage des cases réserve quand on change de smiley
-    if(v==='ok' || v==='nok'){ updateProgress(); renderAll(); return; }
+    if(v==='ok' || v==='nok' || v==='occasion' || v==='neuf'){ updateProgress(); renderAll(); return; }
     updateProgress();
   }, optsAffichees));
   item.append(el('div',{class:'item-obs'},
@@ -757,7 +768,6 @@ function renderInfoSection(){
   })());
   infoGrid.append(textField('Client','client'));
   infoGrid.append(textField('Chantier / Adresse','chantier'));
-  infoGrid.append(textField('Réf. commande','refCommande'));
   infoGrid.append(textField('Nombre de modules','nbModules','number'));
   infoGrid.append((()=>{
     const sel = el('select',{onchange:(e)=>{ state.meta.conducteur=e.target.value; syncSousTraitant(); renderAll(); }});
@@ -772,7 +782,7 @@ function renderInfoSection(){
     const inp = el('input',{type:'text', list:'sous-traitants-list', value:state.meta.sousTraitant,
       oninput:(e)=>{ state.meta.sousTraitant=e.target.value; },
       onchange:()=>{ syncSousTraitant(); renderAll(); }});
-    const field = el('div',{class:'field'}, el('label','Sous-traitant présent'), inp);
+    const field = el('div',{class:'field'}, el('label','Sous-traitant'), inp);
     if(SOUS_TRAITANTS.length){
       const dl = el('datalist',{id:'sous-traitants-list'});
       SOUS_TRAITANTS.forEach(o=> dl.append(el('option',{value:o})));
@@ -1018,13 +1028,23 @@ function renderSignaturesSection(){
     c.append(el('p',{style:'font-size:11.5px;color:var(--ink);font-style:italic;font-weight:700;margin:0 0 16px;'},
       "En conséquence, le présent proces verbal de réception a été établi sous réserve de tous recours en responsabilité pour vice ou défauts cachés pouvant se manifester par la suite."));
 
-    c.append(el('div',{class:'sig-block'},
-      el('h3','Levées de Réserve'),
-      el('div',{class:'sig-grid'},
-        sigCellLoxam('Pour LOXAM MODULE / Sous-traitant — Nom / Visa', state.signatures.leveeLoxam),
-        sigCellClient('Pour le CLIENT — Nom / Visa', state.signatures.leveeClient)
+    c.append(el('div',{class:'field', style:'margin:0 0 14px;'},
+      el('label',{style:'display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer;'},
+        el('input',{type:'checkbox', style:'width:auto;', ...(state.meta.leveeApplicable?{checked:'checked'}:{}),
+          onchange:(e)=>{ state.meta.leveeApplicable = e.target.checked; renderAll(); }}),
+        'Levée de réserve applicable à cette fiche'
       )
     ));
+
+    if(state.meta.leveeApplicable){
+      c.append(el('div',{class:'sig-block'},
+        el('h3','Levées de Réserve'),
+        el('div',{class:'sig-grid'},
+          sigCellLoxam('Pour LOXAM MODULE / Sous-traitant — Nom / Visa', state.signatures.leveeLoxam),
+          sigCellClient('Pour le CLIENT — Nom / Visa', state.signatures.leveeClient)
+        )
+      ));
+    }
   }
   return c;
 }
@@ -1537,7 +1557,9 @@ async function generatePDF(){
           } else {
             dotted(x+6, yy+15, c.w-12);
           }
-        } else {
+        } else if(c.condOn===undefined || r.checks[c.condOn]){
+          // Colonne conditionnelle (ex: Avec/Sans réserve) : n'affiche la case que si la
+          // condition de la ligne est remplie (Occasion coché en ch.3, "pas content" en ch.1/2).
           checkbox(x + c.w/2 - 5, yy + rh/2 - 5, 10, !!r.checks[c.k], colColor(c));
         }
         x += c.w;
@@ -1590,10 +1612,10 @@ async function generatePDF(){
   }
   infoPair('N° Aff', state.meta.numAff, 'Date', frDate(state.meta.date));
   infoPair('Client', state.meta.client, 'Chantier / Adresse', state.meta.chantier);
-  infoPair('Réf. commande', state.meta.refCommande, 'Conducteur de travaux', state.meta.conducteur);
-  infoPair('Nombre de modules', state.meta.nbModules, 'Sous-traitant présent', state.meta.sousTraitant);
-  infoPair('Représentant client présent', ((state.meta.civilite? state.meta.civilite+' ' : '') + (state.meta.representant||'')).trim(), 'Tél', state.meta.tel);
-  infoPair('Email de contact', state.meta.email, null, null);
+  infoPair('Nombre de modules', state.meta.nbModules, 'Conducteur de travaux', state.meta.conducteur);
+  infoPair('Sous-traitant', state.meta.sousTraitant, 'Email de contact', state.meta.email);
+  infoPair('Représentant client présent', ((state.meta.civilite? state.meta.civilite+' ' : '') + (state.meta.representant||'')).trim(), null, null);
+  infoPair('Tél', state.meta.tel, null, null);
   y += 16;
 
   // Chapitres 1 & 2 (smileys)
@@ -1602,7 +1624,7 @@ async function generatePDF(){
     {w:201, t:'OBSERVATIONS', isObs:true}
   ] : [
     {w:150, t:'Élément'}, {w:46, smiley:true, k:0}, {w:46, smiley:false, k:1},
-    {w:52, t2:['AVEC','RÉSERVE'], k:2}, {w:52, t2:['SANS','RÉSERVE'], k:3}, {w:157, t:'OBSERVATIONS', isObs:true}
+    {w:52, t2:['AVEC','RÉSERVE'], k:2, condOn:1}, {w:52, t2:['SANS','RÉSERVE'], k:3, condOn:1}, {w:157, t:'OBSERVATIONS', isObs:true}
   ];
   const stKeys = ['ok','nok','avec_reserve','sans_reserve'];
   function rowsFor(sec){
@@ -1647,7 +1669,7 @@ async function generatePDF(){
   ] : [
     {w:118, t:'Mobilier / accessoire'}, {w:52, t:'QUANTITÉ', isQty:true},
     {w:44, t:'NEUF', k:0}, {w:44, t:'OCCASION', k:1},
-    {w:44, t2:['AVEC','RÉS.'], k:2}, {w:44, t2:['SANS','RÉS.'], k:3}, {w:157, t:'OBSERVATIONS', isObs:true}
+    {w:44, t2:['AVEC','RÉS.'], k:2, condOn:1}, {w:44, t2:['SANS','RÉS.'], k:3, condOn:1}, {w:157, t:'OBSERVATIONS', isObs:true}
   ];
   const mobKeys = ['neuf','occasion','avec_reserve','sans_reserve'];
   const mobRows = MOBILIER_ITEMS.map(i=>{
@@ -1733,6 +1755,7 @@ async function generatePDF(){
 
   if(state.meta.type !== 'sortant'){
     doc.setFont('helvetica','bold'); doc.setFontSize(11);
+    y += 10; // espace visible avant le titre de la section 5
     if(y + 40 > MAXY) y = newPage();
     chapTitle('5. Réserves éventuelles'); y += 18;
     const reserves = (state.reserves.lignes || []).map(t=> String(t||'').trim()).filter(Boolean);
@@ -1821,15 +1844,17 @@ async function generatePDF(){
     par2.forEach((ln,i)=> doc.text(ln, W/2, y+i*11.5, {align:'center'}));
     y += par2H;
 
-    if(y + 90 > MAXY) y = newPage();
-    doc.setDrawColor(30); doc.setLineWidth(0.8);
-    doc.setFillColor(251,236,239);
-    doc.rect(M, y, CW, 15, 'FD');
-    doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(17,24,39);
-    doc.text('Levées de Réserve :', M+6, y+11);
-    y += 17;
-    sigTable(state.signatures.leveeLoxam, state.signatures.leveeClient);
-    y += 18;
+    if(state.meta.leveeApplicable){
+      if(y + 90 > MAXY) y = newPage();
+      doc.setDrawColor(30); doc.setLineWidth(0.8);
+      doc.setFillColor(251,236,239);
+      doc.rect(M, y, CW, 15, 'FD');
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(17,24,39);
+      doc.text('Levées de Réserve :', M+6, y+11);
+      y += 17;
+      sigTable(state.signatures.leveeLoxam, state.signatures.leveeClient);
+      y += 18;
+    }
   }
 
   // Mention SAV (pas sur un état des lieux sortant)
