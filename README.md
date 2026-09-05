@@ -37,7 +37,7 @@ L'icône Loxchek apparaît, l'app s'ouvre en plein écran comme une vraie applic
 ## Mettre à jour le contenu plus tard
 
 Modifier `index.html`, puis sur GitHub : **Add file → Upload files** à nouveau
-(ou éditer le fichier directement dans l'interface GitHub, crayon ✏️ en haut à
+(ou éditer le fichier directement dans l'interface GitHub, icône crayon en haut à
 droite du fichier). Les téléphones récupèrent la nouvelle version à la
 prochaine ouverture avec connexion.
 
