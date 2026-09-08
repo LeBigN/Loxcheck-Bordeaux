@@ -1265,6 +1265,33 @@ function importReservesDansDevis(){
   showToast(out.length ? 'R\u00e9serves reprises dans le descriptif' : 'Aucune r\u00e9serve \u00e0 reprendre');
 }
 
+// Livraison du PDF : partage natif du FICHIER quand le navigateur le permet (mobile),
+// pour que le destinataire reçoive un vrai PDF en pièce jointe — jamais un lien blob:
+// (valable uniquement dans le navigateur de l'expéditeur, donc inutilisable une fois envoyé).
+// Sinon : pont Android existant, puis téléchargement classique (desktop).
+async function deliverPDF(doc, fname){
+  if (window.Android && window.Android.savePdf) {
+    const base64 = doc.output('datauristring').split(',')[1];
+    window.Android.savePdf(base64, fname);
+    return;
+  }
+  let file = null, canShareFiles = false;
+  try{
+    file = new File([doc.output('blob')], fname, { type: 'application/pdf' });
+    canShareFiles = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+  }catch(e){ canShareFiles = false; }
+  if (canShareFiles) {
+    try{
+      await navigator.share({ files: [file], title: fname });
+      return;
+    }catch(e){
+      if (e && e.name === 'AbortError') return; // partage annulé par l'utilisateur : ne rien faire d'autre
+      // autre erreur de partage (rare) : on retombe sur le téléchargement classique ci-dessous
+    }
+  }
+  doc.save(fname);
+}
+
 async function generateDevisPDF(){
   if (!window.jspdf) {
     throw new Error("La librairie PDF ne s'est pas charg\u00e9e. Ouvre la page via un serveur local ou une URL h\u00e9berg\u00e9e, pas en double-cliquant sur le fichier.");
@@ -1446,12 +1473,7 @@ async function generateDevisPDF(){
   doc.setTextColor(17,24,39);
 
   const fname = 'Devis LOXAM Module - ' + ((state.meta.client||'client').trim().replace(/[\\/:*?"<>|]/g,'-') || 'client') + '.pdf';
-  if (window.Android && window.Android.savePdf) {
-    const base64 = doc.output('datauristring').split(',')[1];
-    window.Android.savePdf(base64, fname);
-  } else {
-    doc.save(fname);
-  }
+  await deliverPDF(doc, fname);
 }
 
 async function generatePDF(){
@@ -2000,12 +2022,7 @@ async function generatePDF(){
   }
 
   const fname = 'PV LOXAM Module - ' + ((state.meta.client||'client').trim().replace(/[\\/:*?"<>|]/g,'-') || 'client') + '.pdf';
-  if (window.Android && window.Android.savePdf) {
-    const base64 = doc.output('datauristring').split(',')[1];
-    window.Android.savePdf(base64, fname);
-  } else {
-    doc.save(fname);
-  }
+  await deliverPDF(doc, fname);
 }
 
 // ---------- INIT ----------
