@@ -388,7 +388,7 @@ function resNormalise(arr){
     : {t:(l && l.t) || '', photos:(l && Array.isArray(l.photos)) ? l.photos : []});
 }
 function sansReserve(opts){ return estSortant() ? opts.filter(o=> o.v!=='avec_reserve' && o.v!=='sans_reserve') : opts; }
-const SOUS_TRAITANTS = []; // Bordeaux : liste en attente — laissé vide à la demande de Nico, champ libre en attendant
+const SOUS_TRAITANTS = ['MMA','AMCM','MODULEO'];
 
 // ==== Refacturation SAV : prix HT fourniture et pose (grille agence — ajustable) ====
 const PRIX_SAV = [
@@ -811,18 +811,12 @@ function renderInfoSection(){
     return el('div',{class:'field'}, el('label','Conducteur de travaux'), sel);
   })());
   infoGrid.append((()=>{
-    // Bordeaux : liste SOUS_TRAITANTS encore vide — champ libre (saisie manuelle) en attendant,
-    // avec suggestions automatiques dès que la liste sera renseignée.
-    const inp = el('input',{type:'text', list:'sous-traitants-list', value:state.meta.sousTraitant,
-      oninput:(e)=>{ state.meta.sousTraitant=e.target.value; },
-      onchange:()=>{ syncSousTraitant(); renderAll(); }});
-    const field = el('div',{class:'field'}, el('label','Sous-traitant'), inp);
-    if(SOUS_TRAITANTS.length){
-      const dl = el('datalist',{id:'sous-traitants-list'});
-      SOUS_TRAITANTS.forEach(o=> dl.append(el('option',{value:o})));
-      field.append(dl);
-    }
-    return field;
+    const sel = el('select',{onchange:(e)=>{ state.meta.sousTraitant=e.target.value; syncSousTraitant(); renderAll(); }});
+    sel.append(el('option',{value:''},'\u2014'));
+    SOUS_TRAITANTS.forEach(o=> sel.append(el('option',{value:o, ...(state.meta.sousTraitant===o?{selected:'selected'}:{})}, o)));
+    if(state.meta.sousTraitant && !SOUS_TRAITANTS.includes(state.meta.sousTraitant))
+      sel.append(el('option',{value:state.meta.sousTraitant, selected:'selected'}, state.meta.sousTraitant));
+    return el('div',{class:'field'}, el('label','Sous-traitant'), sel);
   })());
   // Civilité (droite, en paire avec Sous-traitant)
   infoGrid.append((()=>{
