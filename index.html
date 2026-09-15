@@ -447,7 +447,7 @@ const ELECTRO_ITEMS = ['Électroménager'];
 const ELECTRO_OPTS = [ {v:'livre', l:'Livré'}, {v:'non_livre', l:'Non livré'} ];
 
 const state = {
-  meta:{ type:'reception', numAff:'', date:'', client:'', chantier:'', refCommande:'', nbModules:'', conducteur:'', sousTraitant:'', representant:'', civilite:'', email:'', tel:'' },
+  meta:{ type:'reception', numAff:'', date:'', client:'', chantier:'', refCommande:'', nbModules:'', conducteur:'', sousTraitant:'', sousTraitantAutre:'', representant:'', civilite:'', email:'', tel:'' },
   checklist:{},
   cles:{ remises:'', rendues:'' },
   mobilier:{},
@@ -708,13 +708,14 @@ function renderChecklistItem(key, storeObj, showQty, opts){
 // ---------- SECTIONS ----------
 // Le "Représentant client présent" alimente automatiquement le Maître de l'ouvrage
 // (chapitre 4) et les deux signatures "Pour le CLIENT" (chapitre 6).
+function sousTraitantValue(){ return state.meta.sousTraitant === '__autre' ? (state.meta.sousTraitantAutre||'') : (state.meta.sousTraitant||''); }
 function syncSousTraitant(){
   // Sans conducteur de travaux : les blocs signature LOXAM MODULE / Sous-traitant
   // sont remplis avec l'entreprise sous-traitante de l'en-tête de fiche.
-  if(!state.meta.conducteur && state.meta.sousTraitant){
+  if(!state.meta.conducteur && sousTraitantValue()){
     ['receptionLoxam','leveeLoxam'].forEach(k=>{
       state.signatures[k].nom = 'Sous-traitant';
-      state.signatures[k].entreprise = state.meta.sousTraitant;
+      state.signatures[k].entreprise = sousTraitantValue();
     });
   }
   syncLeveeDepuisReception();
@@ -814,10 +815,21 @@ function renderInfoSection(){
     const sel = el('select',{onchange:(e)=>{ state.meta.sousTraitant=e.target.value; syncSousTraitant(); renderAll(); }});
     sel.append(el('option',{value:''},'\u2014'));
     SOUS_TRAITANTS.forEach(o=> sel.append(el('option',{value:o, ...(state.meta.sousTraitant===o?{selected:'selected'}:{})}, o)));
-    if(state.meta.sousTraitant && !SOUS_TRAITANTS.includes(state.meta.sousTraitant))
+    if(state.meta.sousTraitant && !SOUS_TRAITANTS.includes(state.meta.sousTraitant) && state.meta.sousTraitant!=='__autre')
       sel.append(el('option',{value:state.meta.sousTraitant, selected:'selected'}, state.meta.sousTraitant));
-    return el('div',{class:'field'}, el('label','Sous-traitant'), sel);
+    sel.append(el('option', state.meta.sousTraitant==='__autre'?{value:'__autre',selected:'selected'}:{value:'__autre'}, 'Autre…'));
+    const field = el('div',{class:'field'}, el('label','Sous-traitant'), sel);
+    return field;
   })());
+  if(state.meta.sousTraitant==='__autre'){
+    infoGrid.append((()=>{
+      const inp = el('input',{type:'text', value:state.meta.sousTraitantAutre||'',
+        placeholder:"Nom du sous-traitant",
+        oninput:(e)=>{ state.meta.sousTraitantAutre=e.target.value; },
+        onchange:()=>{ syncSousTraitant(); renderAll(); }});
+      return el('div',{class:'field'}, el('label','Préciser le sous-traitant'), inp);
+    })());
+  }
   // Civilité (droite, en paire avec Sous-traitant)
   infoGrid.append((()=>{
     const sel = el('select',{onchange:(e)=>{ state.meta.civilite=e.target.value; }});
@@ -1729,7 +1741,7 @@ async function generatePDF(){
   infoPair('N° Aff', state.meta.numAff, 'Date', frDate(state.meta.date));
   infoPair('Client', state.meta.client, 'Chantier / Adresse', state.meta.chantier);
   infoPair('Conducteur de travaux', state.meta.conducteur, null, null);
-  infoPair('Nombre de modules', state.meta.nbModules, 'Sous-traitant', state.meta.sousTraitant);
+  infoPair('Nombre de modules', state.meta.nbModules, 'Sous-traitant', sousTraitantValue());
   infoPair('Représentant client présent', ((state.meta.civilite? state.meta.civilite+' ' : '') + (state.meta.representant||'')).trim(), null, null);
   infoPair('Tél', state.meta.tel, 'Email de contact', state.meta.email);
   y += 6;
