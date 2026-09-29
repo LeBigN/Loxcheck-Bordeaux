@@ -151,12 +151,17 @@ input, select, textarea{ max-width:100%; min-width:0; box-sizing:border-box; }
 }
 .keys-box .keys-title{font-size:13px; font-weight:800; color:var(--red-dark); margin-bottom:10px;}
 .keys-box .keys-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.keys-box .keys-grid-solo{grid-template-columns:1fr;}
 .keys-box label{display:block; font-size:12px; font-weight:700; color:var(--red-dark); margin-bottom:4px;}
 .keys-box input{width:100%; border:1.5px solid #E8B5BC; border-radius:9px; padding:11px; font-size:17px; font-weight:700; text-align:center; background:#fff;}
 
 .item{border-top:1px solid var(--line); padding:12px 0;}
 .item:first-of-type{border-top:none; padding-top:2px;}
 .item-title{font-size:14.5px; font-weight:600; margin-bottom:8px;}
+.mob-head{display:flex; align-items:center; gap:10px; margin-bottom:8px; cursor:pointer;}
+.mob-head input{width:20px; height:20px; accent-color:var(--red); flex:0 0 auto; margin:0; cursor:pointer;}
+.mob-head span{font-size:14.5px; font-weight:600;}
+.mob-head.off span{color:var(--sub); font-weight:500;}
 .item-qty{margin-bottom:8px;}
 .item-qty input{width:100px; border:1px solid var(--line); border-radius:8px; padding:7px 9px; font-size:14px;}
 .item-obs{margin-top:8px;}
@@ -255,6 +260,7 @@ footer.legal-footer{
 .mini-btn.red{color:var(--red); border-color:var(--red);}
 .devis-recap{text-align:right; font-size:13px; color:var(--sub); font-weight:600; margin-top:8px; line-height:1.6;}
 .devis-total{text-align:right; font-size:16px; font-weight:800; margin-top:10px; padding:10px 4px; border-top:2px solid var(--red);}
+.devis-total-ttc{margin-top:0; padding-top:8px; border-top:1px solid var(--line); color:var(--red-dark);}
 .btn-icon{flex:0 0 54px;}
 .sticky-footer{
   position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--line);
@@ -391,6 +397,7 @@ function sansReserve(opts){ return estSortant() ? opts.filter(o=> o.v!=='avec_re
 const SOUS_TRAITANTS = ['MMA','AMCM','MODULEO'];
 
 // ==== Refacturation SAV : prix HT fourniture et pose (grille agence — ajustable) ====
+function fmtPrixSav(v){ return (Math.round(v*100)%100===0) ? String(Math.round(v)) : v.toFixed(2).replace('.',','); }
 const PRIX_SAV = [
   {cat:'Préfabriqué', items:[
     ['Panneau plein de 1,2m',244], ['Panneau plein de 0,9m',194], ['Panneau fenêtre standard',1672],
@@ -411,7 +418,14 @@ const PRIX_SAV = [
   {cat:'Plomberie / Sanitaire', items:[
     ['Chauffe-eau 15 litres',368], ['Chauffe-eau 300 litres',954], ['Limiteur de pression',103],
     ['Robinet mélangeur douche',267], ['Robinet mélangeur lavabo / évier',229], ['Ventilation mécanique VMC',374],
-    ['Rideau de douche',53], ['Flexible et pomme de douche',65], ['Abattant WC',46]
+    ['Rideau de douche',53], ['Flexible et pomme de douche',65], ['Abattant WC',46],
+    ['Kit meuble évier',980]
+  ]},
+  {cat:'Mobilier', items:[
+    ['Armoire de bureau',177.71], ['Armoire vestiaire double',140.95], ['Banc',36],
+    ['Bureau',145.54], ['Caisson de bureau',107], ['Chaise coquille',13.54],
+    ['Chaise dactylo',65.58], ['Chaise visiteur',25.44], ['Fauteuil',99],
+    ['Plateau de table',39.63], ['Réfrigérateur',167.55]
   ]},
   {cat:'Climatisation / Chauffage', items:[
     ['Trappe clim',241], ['Remplacement climatiseur 2600W',742], ['Remplacement pompe à chaleur 2000W',1036],
@@ -427,6 +441,7 @@ const PRIX_SAV = [
   ]}
 ];
 const SIGNATURES = {}; // { 'Nom Conducteur': 'data:image/png;base64,...' } — signature auto-appliquée sur le PV et le devis quand ce conducteur est sélectionné. Vide pour l'instant (Bordeaux) : signature tactile au doigt utilisée en attendant les images.
+const TVA_RATE = 0.20;   // TVA 20 %
 const KM_RATE = 1.60; // € HT / km (déplacement)
 const DEVIS_AGENCE = { nom:'Loxam Module Nouvelle-Aquitaine', adresse:'170 Avenue de Paris, 33620 Cavignac', tel:'05 57 33 69 23' };
 const DEVIS_CONTACTS = { 'Paul Cordelle':'' }; // téléphone de Paul Cordelle en attente
@@ -436,12 +451,12 @@ const CHECKLIST_SECTIONS = [
     'Propreté intérieure','Propreté extérieure','Revetement de sols'
   ]},
   { id:'structure', num:'2', title:'2. État des panneaux et structure', items:[
-    'Panneaux extérieurs','Panneaux intérieurs','Lames de plafond','Ossature','Portes','Fenêtres',
-    'Serrures, poignées','Éclairage','Chauffage / climatisation','Sanitaires',
-    'Escalier(s), Cage(s)','Palier(s)','Rampe(s) PMR','Garde-corps','Échelle a crinoline'
+    'Panneaux extérieurs','Panneaux intérieurs','Lames de plafond','Menuiseries',
+    'Sanitaires','Métalleries'
   ]},
 ];
 
+function mobilierActif(i){ const it = state.mobilier[i]; return !!(it && it.actif); }
 const MOBILIER_ITEMS = ['Table(s)','Chaise(s)','Chaise(s) tissu','Armoire(s) vestiaire','Banc(s)','Armoire(s) bureau','Caisson(s)'];
 const ELECTRO_ITEMS = ['Électroménager'];
 const ELECTRO_OPTS = [ {v:'livre', l:'Livré'}, {v:'non_livre', l:'Non livré'} ];
@@ -451,7 +466,7 @@ const state = {
   checklist:{},
   cles:{ remises:'', rendues:'' },
   mobilier:{},
-  casse:{ constat:'none', lignes:['','',''], photos:[] },
+  casse:{ constat:'none', lignes:[{t:'',photos:[]}], photos:[] },
   acceptation:{ maitreOuvrage:'', delaiJours:'' },
   reserves:{ lignes:[{t:'',photos:[]}], raccordement:false, photos:[] },
   notice:{ statut:'' }, // 'remise' | 'non_concerne'
@@ -466,8 +481,8 @@ const state = {
 CHECKLIST_SECTIONS.forEach(s => s.items.forEach(i => {
   state.checklist[s.id+'|'+i] = { statuses:[], obs:'', photos:[] };
 }));
-MOBILIER_ITEMS.forEach(i => { state.mobilier[i] = { qty:'', statuses:[], obs:'', photos:[] }; });
-ELECTRO_ITEMS.forEach(i => { state.mobilier[i] = { qty:'', statuses:[], obs:'', photos:[] }; });
+MOBILIER_ITEMS.forEach(i => { state.mobilier[i] = { actif:false, qty:'', statuses:[], obs:'', photos:[] }; });
+ELECTRO_ITEMS.forEach(i => { state.mobilier[i] = { actif:false, qty:'', statuses:[], obs:'', photos:[] }; });
 
 // Snapshot of the empty fiche, used to fully reset the form.
 const INITIAL_STATE = JSON.parse(JSON.stringify(state));
@@ -489,7 +504,8 @@ async function loadDraft(){
       Object.assign(state.cles, loaded.cles||{});
       Object.assign(state.mobilier, loaded.mobilier||{});
       Object.assign(state.casse, loaded.casse||{});
-      if(!Array.isArray(state.casse.lignes) || !state.casse.lignes.length) state.casse.lignes = [''];
+      state.casse.lignes = resNormalise(state.casse.lignes);
+      if(!state.casse.lignes.length) state.casse.lignes = [{t:'',photos:[]}];
       Object.assign(state.acceptation, loaded.acceptation||{});
       Object.assign(state.reserves, loaded.reserves||{});
       Object.assign(state.notice, loaded.notice||{});
@@ -505,7 +521,21 @@ async function loadDraft(){
       if(!Array.isArray(state.reserves.photos)) state.reserves.photos=[];
       state.reserves.lignes = resNormalise(state.reserves.lignes);
       if(!state.reserves.lignes.length) state.reserves.lignes = [{t:'',photos:[]}];
-      ELECTRO_ITEMS.forEach(i=>{ if(!state.mobilier[i]) state.mobilier[i] = { qty:'', statuses:[], obs:'', photos:[] }; });
+      ELECTRO_ITEMS.forEach(i=>{ if(!state.mobilier[i]) state.mobilier[i] = { actif:false, qty:'', statuses:[], obs:'', photos:[] }; });
+      // Chapitre 2 allégé : on écarte les lignes qui n'existent plus
+      {
+        const clesValides = {};
+        CHECKLIST_SECTIONS.forEach(sec=> sec.items.forEach(it=> clesValides[sec.id+'|'+it]=1));
+        Object.keys(state.checklist).forEach(k=>{ if(!clesValides[k]) delete state.checklist[k]; });
+      }
+      // Mobilier : les anciennes fiches n'ont pas de drapeau « actif »
+      MOBILIER_ITEMS.concat(ELECTRO_ITEMS).forEach(i=>{
+        const it = state.mobilier[i];
+        if(!it){ state.mobilier[i] = { actif:false, qty:'', statuses:[], obs:'', photos:[] }; return; }
+        if(typeof it.actif !== 'boolean'){
+          it.actif = !!((it.statuses && it.statuses.length) || String(it.qty||'').trim() || String(it.obs||'').trim() || (it.photos && it.photos.length));
+        }
+      });
       if(state.meta.type==='levee') state.meta.type='';   // type retiré
       if(state.meta.email===undefined) state.meta.email='';
       if(state.devis.email===undefined) state.devis.email = state.meta.email || '';
@@ -655,11 +685,24 @@ function photoRow(getPhotos, onAdd, onRemove){
   return wrap;
 }
 
-function renderChecklistItem(key, storeObj, showQty, opts){
+function renderChecklistItem(key, storeObj, showQty, opts, toggleable){
   const data = storeObj[key];
   const label = key.includes('|') ? key.split('|')[1] : key;
   const item = el('div',{class:'item'});
-  item.append(el('div',{class:'item-title'}, label));
+  if(toggleable){
+    // Mobilier : la ligne n'apparaît (app + PDF) que si la case est cochée
+    const cb = el('input',{type:'checkbox', ...(data.actif ? {checked:'checked'} : {})});
+    cb.addEventListener('change', ()=>{
+      data.actif = cb.checked;
+      if(!data.actif){ data.qty=''; data.statuses=[]; data.obs=''; data.photos=[]; }
+      updateProgress(); renderAll();
+    });
+    const head = el('label',{class:'mob-head' + (data.actif ? '' : ' off')}, cb, el('span', label));
+    item.append(head);
+    if(!data.actif) return item;
+  } else {
+    item.append(el('div',{class:'item-title'}, label));
+  }
   if(showQty){
     item.append(el('div',{class:'item-qty'},
       el('label',{style:'font-size:11.5px;color:var(--sub);font-weight:600;margin-bottom:3px;display:block;'},'Quantité'),
@@ -863,20 +906,24 @@ function renderChecklistSection(def){
 function renderClesSection(){
   const c = el('section',{class:'card', id:'sec-cles'});
   c.append(el('h2','3. Clés et mobilier'));
+  // Réception d'ouvrage : seules les clés REMISES sont demandées.
+  // Démontage : les deux champs (remises + rendues).
+  const keysGrid = el('div',{class:'keys-grid' + (estSortant() ? '' : ' keys-grid-solo')});
+  keysGrid.append(el('div',{},
+    el('label','Nombre de clés remises'),
+    el('input',{type:'number', min:'0', placeholder:'0', value:state.cles.remises, oninput:(e)=>state.cles.remises=e.target.value})));
+  if(estSortant()){
+    keysGrid.append(el('div',{},
+      el('label','Nombre de clés rendues'),
+      el('input',{type:'number', min:'0', placeholder:'0', value:state.cles.rendues, oninput:(e)=>state.cles.rendues=e.target.value})));
+  }
   c.append(el('div',{class:'keys-box'},
     (()=>{ const t=el('div',{class:'keys-title'}); t.innerHTML=icon('key',16)+'<span>Clés</span>'; return t; })(),
-    el('div',{class:'keys-grid'},
-      el('div',{},
-        el('label','Nombre de clés remises'),
-        el('input',{type:'number', min:'0', placeholder:'0', value:state.cles.remises, oninput:(e)=>state.cles.remises=e.target.value})),
-      el('div',{},
-        el('label','Nombre de clés rendues'),
-        el('input',{type:'number', min:'0', placeholder:'0', value:state.cles.rendues, oninput:(e)=>state.cles.rendues=e.target.value}))
-    )
+    keysGrid
   ));
-  MOBILIER_ITEMS.forEach(i => c.append(renderChecklistItem(i, state.mobilier, true, estSortant() ? MOBILIER_SMILEY_OPTS : sansReserve(STATUS_OPTS))));
+  MOBILIER_ITEMS.forEach(i => c.append(renderChecklistItem(i, state.mobilier, true, estSortant() ? MOBILIER_SMILEY_OPTS : sansReserve(STATUS_OPTS), true)));
   // Électroménager : cases Livré / Non livré + photo
-  ELECTRO_ITEMS.forEach(i => c.append(renderChecklistItem(i, state.mobilier, false, ELECTRO_OPTS)));
+  ELECTRO_ITEMS.forEach(i => c.append(renderChecklistItem(i, state.mobilier, false, ELECTRO_OPTS, true)));
   return c;
 }
 
@@ -895,30 +942,60 @@ function renderCasseSection(){
   c.append(row);
   if(state.casse.constat==='some'){
     // Lignes dynamiques (comme les réserves) : autant que nécessaire
-    if(!Array.isArray(state.casse.lignes)) state.casse.lignes = [''];
-    if(!state.casse.lignes.length) state.casse.lignes = [''];
+    state.casse.lignes = resNormalise(state.casse.lignes);
+    if(!state.casse.lignes.length) state.casse.lignes = [{t:'',photos:[]}];
     const list = el('div',{class:'reserve-lines', style:'margin-top:10px;'});
     const rebuild = ()=>{
       list.textContent = '';
-      state.casse.lignes.forEach((val, idx)=>{
+      state.casse.lignes = resNormalise(state.casse.lignes);
+      state.casse.lignes.forEach((ligne, idx)=>{
+        const bloc = el('div',{class:'reserve-bloc'});
         const rowEl = el('div',{class:'reserve-line'});
         rowEl.append(el('span',{class:'reserve-dash'},'—'));
-        rowEl.append(el('input',{type:'text', placeholder:'Dommage constaté…', value:val,
-          oninput:(e)=>{ state.casse.lignes[idx] = e.target.value; }}));
+        rowEl.append(el('input',{type:'text', placeholder:'Dommage constaté…', value:ligne.t,
+          oninput:(e)=>{ state.casse.lignes[idx].t = e.target.value; }}));
+        const btnCam = el('label',{class:'reserve-ico', title:'Prendre une photo'});
+        const inCam = el('input',{type:'file', accept:'image/*', capture:'environment', style:'display:none'});
+        inCam.addEventListener('change',(e)=>{
+          const f=e.target.files[0]; if(f) compresserImage(f,(src)=>{ state.casse.lignes[idx].photos.push(src); rebuild(); });
+          inCam.value='';
+        });
+        btnCam.innerHTML = icon('camera',15); btnCam.append(inCam);
+        const btnGal = el('label',{class:'reserve-ico', title:'Importer depuis la galerie'});
+        const inGal = el('input',{type:'file', accept:'image/*', multiple:'multiple', style:'display:none'});
+        inGal.addEventListener('change',(e)=>{
+          const fs2=Array.from(e.target.files||[]); if(!fs2.length) return;
+          let rest=fs2.length;
+          fs2.forEach(f=> compresserImage(f,(src)=>{ state.casse.lignes[idx].photos.push(src); if(--rest===0) rebuild(); }));
+          inGal.value='';
+        });
+        btnGal.innerHTML = icon('image',15); btnGal.append(inGal);
+        rowEl.append(btnCam, btnGal);
         const del = el('button',{class:'reserve-del', title:'Supprimer', onclick:()=>{
           state.casse.lignes.splice(idx,1);
-          if(!state.casse.lignes.length) state.casse.lignes = [''];
+          if(!state.casse.lignes.length) state.casse.lignes = [{t:'',photos:[]}];
           rebuild();
         }});
         del.innerHTML = icon('x',15);
         rowEl.append(del);
-        list.append(rowEl);
+        bloc.append(rowEl);
+        if(ligne.photos.length){
+          const th = el('div',{class:'reserve-thumbs'});
+          ligne.photos.forEach((src, pi)=>{
+            th.append(el('div',{class:'photo-thumb'},
+              el('img',{src}),
+              el('button',{class:'rm', onclick:()=>{ state.casse.lignes[idx].photos.splice(pi,1); rebuild(); }},'×')
+            ));
+          });
+          bloc.append(th);
+        }
+        list.append(bloc);
       });
     };
     rebuild();
     c.append(list);
     const addBtn = el('button',{class:'add-line-btn', onclick:()=>{
-      state.casse.lignes.push(''); rebuild();
+      state.casse.lignes.push({t:'',photos:[]}); rebuild();
     }});
     addBtn.innerHTML = icon('plus',15) + '<span>Ajouter une ligne</span>';
     c.append(addBtn);
@@ -1179,9 +1256,12 @@ function renderAll(){
 }
 
 function updateProgress(){
-  const all = Object.values(state.checklist).concat(Object.values(state.mobilier));
+  const mobCount = [];
+  MOBILIER_ITEMS.forEach(i=>{ if(mobilierActif(i)) mobCount.push(state.mobilier[i]); });
+  ELECTRO_ITEMS.forEach(i=>{ if(mobilierActif(i)) mobCount.push(state.mobilier[i]); });
+  const all = Object.values(state.checklist).concat(mobCount);
   const done = all.filter(i=>i.statuses && i.statuses.length).length;
-  const pct = Math.round((done/all.length)*100);
+  const pct = all.length ? Math.round((done/all.length)*100) : 0;
   document.getElementById('progressFill').style.width = pct+'%';
 }
 // ---------- PDF EXPORT ----------
@@ -1219,7 +1299,7 @@ function renderDevisSection(){
   sel.append(el('option',{value:''},'\u2014 Refacturation \u2014'));
   PRIX_SAV.forEach((grp,gi)=>{
     const og = el('optgroup',{label:grp.cat});
-    grp.items.forEach((it,ii)=> og.append(el('option',{value:gi+'|'+ii}, it[0]+' \u2014 '+it[1]+' \u20ac')));
+    grp.items.forEach((it,ii)=> og.append(el('option',{value:gi+'|'+ii}, it[0]+' \u2014 '+fmtPrixSav(it[1])+' \u20ac')));
     sel.append(og);
   });
   const addBtn = el('button',{class:'mini-btn red', onclick:()=>{
@@ -1234,14 +1314,17 @@ function renderDevisSection(){
 
   const totalSpan = el('span');
   const recapWrap = el('div',{class:'devis-recap'});
+  const ttcSpan = el('span');
   const updTotal = ()=>{
     totalSpan.textContent = devisTotalHT().toFixed(2) + ' \u20ac HT';
+    ttcSpan.textContent = devisTotalTTC().toFixed(2) + ' \u20ac TTC';
     recapWrap.textContent = '';
     const pct = devisRemisePct();
     if(pct > 0){
       recapWrap.append(el('div',{}, 'Sous-total HT : ' + devisSousTotalHT().toFixed(2) + ' \u20ac'));
       recapWrap.append(el('div',{}, 'Remise ' + pct + ' % : \u2212 ' + devisRemiseMontant().toFixed(2) + ' \u20ac'));
     }
+    recapWrap.append(el('div',{}, 'TVA 20 % : ' + devisTVA().toFixed(2) + ' \u20ac'));
   };
 
   if(state.devis.lignes.length){
@@ -1295,8 +1378,10 @@ function renderDevisSection(){
   c.append(recapWrap);
 
   const tot = el('div',{class:'devis-total'}, 'Total HT : ', totalSpan);
+  const totTTC = el('div',{class:'devis-total devis-total-ttc'}, 'Total TTC : ', ttcSpan);
   updTotal();
   c.append(tot);
+  c.append(totTTC);
   return c;
 }
 
@@ -1310,6 +1395,8 @@ function devisRemisePct(){
 }
 function devisRemiseMontant(){ return devisSousTotalHT() * devisRemisePct()/100; }
 function devisTotalHT(){ return devisSousTotalHT() - devisRemiseMontant(); }
+function devisTVA(){ return devisTotalHT() * TVA_RATE; }
+function devisTotalTTC(){ return devisTotalHT() + devisTVA(); }
 
 function importReservesDansDevis(){
   const out = [];
@@ -1320,10 +1407,11 @@ function importReservesDansDevis(){
     if(bad.length) out.push('- '+i+' ('+bad.map(b=>lbl[b]).join(', ')+')'+(it.obs ? ' : '+it.obs : ''));
   }));
   Object.entries(state.mobilier).forEach(([i,it])=>{
+    if((MOBILIER_ITEMS.indexOf(i) !== -1 || ELECTRO_ITEMS.indexOf(i) !== -1) && !mobilierActif(i)) return;
     const bad = (it.statuses||[]).filter(x=> x==='avec_reserve');
     if(bad.length) out.push('- '+i+' (avec r\u00e9serve)'+(it.obs ? ' : '+it.obs : ''));
   });
-  (state.casse.lignes||[]).filter(Boolean).forEach(t=> out.push('- Casse : '+t));
+  resNormalise(state.casse.lignes).map(l=>resTexte(l).trim()).filter(Boolean).forEach(t=> out.push('- Casse : '+t));
   (state.reserves.lignes||[]).filter(Boolean).forEach(t=> out.push('- R\u00e9serve : '+t));
   state.devis.descriptif = out.join('\n');
   renderAll();
@@ -1453,50 +1541,77 @@ async function generateDevisPDF(){
   doc.setDrawColor(0);
   y = boxBottom;
 
-  // Formule de politesse + contact
-  doc.setFontSize(9);
-  const polit = doc.splitTextToSize("Restant \u00e0 votre disposition pour tous renseignements compl\u00e9mentaires, veuillez agr\u00e9er, l'expression de nos salutations respectueuses.", 290);
-  doc.text(polit, M, y+26);
+  // ---- Bas de page : politesse, signature conducteur, totaux (visuel Loxdevis) ----
+  const remisePct = devisRemisePct();
+  const remiseMt  = total * remisePct/100;
+  const totalNet  = total - remiseMt;
+  const tva       = totalNet * TVA_RATE;
+  const totalTTC  = totalNet + tva;
+
+  // Tout est ancré par le bas pour garantir la place de la signature
+  const BAS   = 788;                 // limite avant le pied de page légal
+  const ttcY  = BAS - 28;            // cadre Total TTC
+  const xLab  = W - M - 300;         // colonne des libellés de totaux
+  let   ligne = ttcY - 12;           // première ligne fine au-dessus du cadre
+
+  // Formule de politesse (colonne gauche)
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(17,24,39);
+  const polit = doc.splitTextToSize("Restant \u00e0 votre disposition pour tous renseignements compl\u00e9mentaires, veuillez agr\u00e9er, l'expression de nos salutations respectueuses.", 300);
+  doc.text(polit, M, y+24);
+
+  // Bloc conducteur + signature (au-dessus des totaux, colonne droite)
   const contact = state.meta.conducteur || CONDUCTEURS[0];
-  doc.setFont('helvetica','bold'); doc.setFontSize(10);
-  doc.text(contact.toUpperCase(), 370, y+26);
-  doc.setFont('helvetica','normal'); doc.setFontSize(9);
-  doc.text('Conducteur de Travaux', 370, y+38);
   const telC = DEVIS_CONTACTS[contact] || '';
-  if(telC) doc.text(telC, 370, y+50);
+  // Le bloc signature est calé au-dessus de la première ligne de totaux,
+  // en tenant compte des lignes supplémentaires quand il y a une remise.
+  const nbLignesTot   = remisePct > 0 ? 4 : 2;                 // sous-total, remise, HT, TVA
+  const premiereLigne = ligne - (nbLignesTot - 1) * 14;        // y de la ligne la plus haute
+  const sigH = 30, blocH = 32 + sigH;                          // nom + fonction + tél, puis signature
+  const sigBas = premiereLigne - 12;                           // marge de sécurité sous la signature
+  let sigTop = Math.max(y + 16, sigBas - blocH);
+  doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(17,24,39);
+  const xSig = 370;
+  doc.text(contact.toUpperCase(), xSig, sigTop + 10);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  doc.text('Conducteur de Travaux', xSig, sigTop + 22);
+  if(telC) doc.text(telC, xSig, sigTop + 33);
   try{
     if(SIGNATURES[contact]){
-      doc.addImage(SIGNATURES[contact], 'PNG', 370, y+54, 66, 40);
+      doc.addImage(SIGNATURES[contact], 'PNG', xSig, sigTop + 34, 52, sigH);
     } else {
-      const s = state.signatures.receptionLoxam;
-      if(s && s.sig) doc.addImage(s.sig, 'PNG', 370, y+56, 100, 33);
+      const sg = state.signatures.receptionLoxam;
+      if(sg && sg.sig) doc.addImage(sg.sig, 'PNG', xSig, sigTop + 36, 80, sigH - 4);
     }
   }catch(e){}
 
-  // Remise client
-  const remisePct = devisRemisePct();
-  const remiseMt = total * remisePct/100;
-  const totalNet = total - remiseMt;
-
-  // Total HT
-  const totY = Math.min(y + 110 + (remisePct > 0 ? 34 : 0), 792);
+  // Lignes fines de totaux (Sous-total / Remise / Total HT / TVA)
+  doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(17,24,39);
+  doc.text('TVA (20%) :', xLab, ligne);
+  doc.text(tva.toFixed(2) + ' \u20ac', W-M-8, ligne, {align:'right'});
+  ligne -= 14;
+  doc.text('Total HT :', xLab, ligne);
+  doc.text(totalNet.toFixed(2) + ' \u20ac', W-M-8, ligne, {align:'right'});
   if(remisePct > 0){
-    const xLab = W-M-300;   // aligné sur le bord gauche du cadre Total HT
-    doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(17,24,39);
-    doc.text('Sous-total HT', xLab, totY-30);
-    doc.text(total.toFixed(2) + ' \u20ac', W-M-8, totY-30, {align:'right'});
+    ligne -= 14;
     doc.setFont('helvetica','bold'); doc.setTextColor(REDD[0],REDD[1],REDD[2]);
-    doc.text('Remise ' + remisePct + ' %', xLab, totY-14);
-    doc.text('- ' + remiseMt.toFixed(2) + ' \u20ac', W-M-8, totY-14, {align:'right'});
+    doc.text('Remise ' + remisePct + ' %', xLab, ligne);
+    doc.text('- ' + remiseMt.toFixed(2) + ' \u20ac', W-M-8, ligne, {align:'right'});
+    ligne -= 14;
     doc.setFont('helvetica','normal'); doc.setTextColor(17,24,39);
+    doc.text('Sous-total HT :', xLab, ligne);
+    doc.text(total.toFixed(2) + ' \u20ac', W-M-8, ligne, {align:'right'});
   }
+
+  // Cadre unique Total TTC (comme Loxdevis)
   doc.setFillColor(REDD[0],REDD[1],REDD[2]); doc.setDrawColor(REDD[0],REDD[1],REDD[2]); doc.setLineWidth(1);
-  doc.roundedRect(W-M-300, totY, 164, 26, 6, 6, 'FD');
+  doc.roundedRect(W-M-300, ttcY, 164, 28, 6, 6, 'FD');
   doc.setFillColor(WARMF[0],WARMF[1],WARMF[2]); doc.setDrawColor(WARMB[0],WARMB[1],WARMB[2]);
-  doc.roundedRect(W-M-130, totY, 130, 26, 6, 6, 'FD');
-  doc.setFont('helvetica','bold'); doc.setFontSize(10.5);
-  doc.setTextColor(255); doc.text('Total HT', W-M-294, totY+17);
-  doc.setTextColor(17,24,39); doc.text(totalNet.toFixed(2)+'\u20acht', W-M-8, totY+17, {align:'right'});
+  doc.roundedRect(W-M-130, ttcY, 130, 28, 6, 6, 'FD');
+  doc.setFont('helvetica','bold'); doc.setFontSize(11);
+  doc.setTextColor(255); doc.text('Total TTC', W-M-294, ttcY+18.5);
+  doc.setTextColor(17,24,39); doc.text(totalTTC.toFixed(2)+'\u20ac ttc', W-M-8, ttcY+18.5, {align:'right'});
+
+  const totY = ttcY;   // référence pour les coordonnées client à gauche
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(17,24,39);
   // Nom / Téléphone / Email sur 3 lignes distinctes
   const reprLigne = ((state.meta.civilite ? state.meta.civilite + ' ' : '') + (state.meta.representant || '')).trim();
@@ -1784,11 +1899,13 @@ async function generatePDF(){
   doc.setFont('helvetica','normal'); doc.setFontSize(10);
   if(state.cles.remises) doc.text(String(state.cles.remises), M+124, y);
   dotted(M+120, y+3, 100);
-  doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
-  doc.text('Nombre de clés rendues :', colX[1], y);
-  doc.setFont('helvetica','normal'); doc.setFontSize(10);
-  if(state.cles.rendues) doc.text(String(state.cles.rendues), colX[1]+124, y);
-  dotted(colX[1]+120, y+3, 100);
+  if(estSortant()){
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
+    doc.text('Nombre de clés rendues :', colX[1], y);
+    doc.setFont('helvetica','normal'); doc.setFontSize(10);
+    if(state.cles.rendues) doc.text(String(state.cles.rendues), colX[1]+124, y);
+    dotted(colX[1]+120, y+3, 100);
+  }
   y += 17;
 
   const colsMob = estSortant() ? [
@@ -1801,18 +1918,20 @@ async function generatePDF(){
     {w:44, t2:['AVEC','RÉS.'], k:2, condOn:1}, {w:44, t2:['SANS','RÉS.'], k:3, condOn:1}, {w:157, t:'OBSERVATIONS', isObs:true}
   ];
   const mobKeys = estSortant() ? ['ok','nok'] : ['neuf','occasion','avec_reserve','sans_reserve'];
-  const mobRows = MOBILIER_ITEMS.map(i=>{
+  const mobRows = MOBILIER_ITEMS.filter(i=> mobilierActif(i)).map(i=>{
     const it = state.mobilier[i] || {qty:'',statuses:[],obs:''};
     return { name:i, qty:it.qty, obs:it.obs, checks: mobKeys.map(k=> (it.statuses||[]).includes(k)) };
-  }).filter(r=> r.checks.some(Boolean) || (r.qty && String(r.qty).trim()) || (r.obs && r.obs.trim()));
-  y = statusTable(y, colsMob, mobRows);
-  y += 14;
+  });
+  if(mobRows.length){
+    y = statusTable(y, colsMob, mobRows);
+    y += 14;
+  }
 
   // Électroménager : colonnes Livré / Non livré
-  const electroRows = ELECTRO_ITEMS.map(i=>{
+  const electroRows = ELECTRO_ITEMS.filter(i=> mobilierActif(i)).map(i=>{
     const it = state.mobilier[i] || {statuses:[],obs:''};
     return { name:i, obs:it.obs, checks: ['livre','non_livre'].map(k=> (it.statuses||[]).includes(k)) };
-  }).filter(r=> r.checks.some(Boolean));   // affiché seulement si Livré ou Non livré est coché
+  });   // affiché seulement si la case Électroménager est cochée
   if(electroRows.length){
     if(y + 60 > MAXY) y = newPage();
     const colsElectro = [
@@ -1865,7 +1984,7 @@ async function generatePDF(){
     doc.setFont('helvetica','bold'); doc.setFontSize(11);
     chapTitle('4. Casse et dommages constatés'); y += 16;
     // Détail des casses mis en valeur (même style que les réserves : cadre + puces)
-    const casses = (state.casse.lignes || []).map(t=> String(t||'').trim()).filter(Boolean);
+    const casses = resNormalise(state.casse.lignes).map(l=> resTexte(l).trim()).filter(Boolean);
     doc.setFont('helvetica','bold'); doc.setFontSize(10);
     let contentH = 0;
     const wrapped = [];
@@ -2055,10 +2174,12 @@ async function generatePDF(){
     ((it && it.photos) || []).forEach(p=> annex.push({label:i, src:p, obs:(it&&it.obs)||'', reserve:aReserve(it)}));
   }));
   MOBILIER_ITEMS.forEach(i=>{
+    if(!mobilierActif(i)) return;
     const it = state.mobilier[i];
     ((it && it.photos) || []).forEach(p=> annex.push({label:i, src:p, obs:(it&&it.obs)||'', reserve:aReserve(it)}));
   });
   ELECTRO_ITEMS.forEach(i=>{
+    if(!mobilierActif(i)) return;
     const it = state.mobilier[i];
     ((it && it.photos) || []).forEach(p=> annex.push({label:i, src:p, obs:(it&&it.obs)||'', reserve:false}));
   });
@@ -2075,7 +2196,13 @@ async function generatePDF(){
     });
     (state.reserves.photos || []).forEach(p=> annex.push({label:'Réserves éventuelles', src:p, obs:'', reserve:true}));
   }
-  if(afficherCasse) (state.casse.photos || []).forEach(p=> annex.push({label:'Casse / dommages', src:p, obs:'', reserve:false}));
+  if(afficherCasse){
+    resNormalise(state.casse.lignes).forEach((l, i)=>{
+      const txt = resTexte(l).trim();
+      resPhotos(l).forEach(p=> annex.push({ label:'Casse '+(i+1), src:p, obs:txt, reserve:true }));
+    });
+    (state.casse.photos || []).forEach(p=> annex.push({label:'Casse / dommages', src:p, obs:'', reserve:true}));
+  }
   if(annex.length){
     y = newPage();
     doc.setFont('helvetica','bold'); doc.setFontSize(12);
