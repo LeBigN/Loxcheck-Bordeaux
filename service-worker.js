@@ -1,4 +1,4 @@
-const CACHE_NAME = 'loxcheck-bordeaux-v16';
+const CACHE_NAME = 'loxcheck-bordeaux-v17';
 const ASSETS = [
   './',
   './index.html',

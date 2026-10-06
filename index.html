@@ -46,6 +46,7 @@ if (!window.storage) {
   --neuf:#1E9E5A;
   --occasion:#2C6FB0;
   --avec-reserve:#C6362E;
+  --neutre:#F28C1B;
   --sans-reserve:#8891A0;
   --gold:#E8A812;
 }
@@ -112,6 +113,8 @@ input, select, textarea{ max-width:100%; min-width:0; box-sizing:border-box; }
 .radio-row input{display:none;}
 .radio-row label.st-ok{border-color:var(--neuf); color:var(--neuf);}
 .radio-row input:checked + label.st-ok{background:var(--neuf); color:#fff;}
+.radio-row label.st-neutre{border-color:var(--neutre); color:var(--neutre);}
+.radio-row input:checked + label.st-neutre{background:var(--neutre); color:#fff;}
 .radio-row label.st-nok{border-color:var(--avec-reserve); color:var(--avec-reserve);}
 .radio-row input:checked + label.st-nok{background:var(--avec-reserve); color:#fff;}
 .radio-row label.st-neuf{border-color:var(--neuf); color:var(--neuf);}
@@ -254,8 +257,20 @@ footer.legal-footer{
 .devis-row .d-del{flex:0 0 34px; height:38px; border:1px solid var(--line); background:#fff; color:var(--avec-reserve); border-radius:9px; font-size:15px;}
 .devis-cols{display:flex; gap:6px; font-size:11px; color:var(--sub); font-weight:700; margin-bottom:4px;}
 .devis-cols .c-desc{flex:1 1 0;} .devis-cols .c-qty{flex:0 0 56px; text-align:center;} .devis-cols .c-mt{flex:0 0 74px; text-align:right;} .devis-cols .c-del{flex:0 0 34px;}
-.devis-add{display:flex; gap:8px; margin:10px 0;}
-.devis-add select{flex:1 1 0; min-width:0; border:1px solid var(--line); border-radius:9px; padding:9px 8px; font-size:12.5px; background:#fff;}
+.devis-add{display:flex; flex-wrap:wrap; gap:8px; margin:10px 0;}
+/* Menu de refacturation : pleine largeur sur sa propre ligne (mobile), police lisible, options qui passent à la ligne */
+.devis-add select{
+  flex:1 1 100%; width:100%; min-width:0; max-width:100%;
+  border:1px solid var(--line); border-radius:9px; padding:11px 10px;
+  font-size:15px; line-height:1.35; background:#fff; color:var(--ink);
+  text-overflow:ellipsis;
+}
+.devis-add select option, .devis-add select optgroup{white-space:normal; font-size:15px;}
+.devis-add .mini-btn{flex:1 1 100%; padding:11px 12px; font-size:14px;}
+@media (min-width:640px){
+  .devis-add select{flex:1 1 0; width:auto; min-width:360px;}
+  .devis-add .mini-btn{flex:0 0 auto;}
+}
 .mini-btn{border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:9px; padding:9px 12px; font-size:13px; font-weight:700;}
 .mini-btn.red{color:var(--red); border-color:var(--red);}
 .devis-recap{text-align:right; font-size:13px; color:var(--sub); font-weight:600; margin-top:8px; line-height:1.6;}
@@ -366,9 +381,13 @@ function icon(name, size){
 const SMILEY_OK = '<svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="19" stroke="currentColor" stroke-width="3.2"/><circle cx="17" cy="19" r="2.7" fill="currentColor"/><circle cx="31" cy="19" r="2.7" fill="currentColor"/><path d="M15.5 29c2.4 3.6 5.6 5.2 8.5 5.2s6.1-1.6 8.5-5.2" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></svg>';
 const SMILEY_NOK = '<svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="19" stroke="currentColor" stroke-width="3.2"/><circle cx="17" cy="19" r="2.7" fill="currentColor"/><circle cx="31" cy="19" r="2.7" fill="currentColor"/><path d="M15.5 34c2.4-3.6 5.6-5.2 8.5-5.2s6.1 1.6 8.5 5.2" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></svg>';
 
-// Chapitres 1 & 2 : smiley vert (conforme) / smiley rouge (non conforme) + réserves
+// Smiley neutre : bouche droite (couleur orange via CSS / PDF)
+const SMILEY_NEUTRE = '<svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="19" stroke="currentColor" stroke-width="3.2"/><circle cx="17" cy="19" r="2.7" fill="currentColor"/><circle cx="31" cy="19" r="2.7" fill="currentColor"/><path d="M16 31.5h16" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></svg>';
+
+// Chapitres 1 & 2 : smiley vert (conforme) / smiley orange (neutre) / smiley rouge (non conforme) + réserves
 const CHECK_OPTS = [
   {v:'ok', svg:SMILEY_OK},
+  {v:'neutre', svg:SMILEY_NEUTRE},
   {v:'nok', svg:SMILEY_NOK},
   {v:'avec_reserve', l:'Avec réserve'},
   {v:'sans_reserve', l:'Sans réserve'}
@@ -381,6 +400,7 @@ const STATUS_OPTS = [
 // Mobilier en état des lieux sortant : smileys (content / pas content) comme la propreté
 const MOBILIER_SMILEY_OPTS = [
   {v:'ok', svg:SMILEY_OK},
+  {v:'neutre', svg:SMILEY_NEUTRE},
   {v:'nok', svg:SMILEY_NOK}
 ];
 const CONDUCTEURS = ['Paul Cordelle'];
@@ -440,11 +460,23 @@ const PRIX_SAV = [
     ['Forfait nettoyage module sanitaire',120]
   ]}
 ];
-const SIGNATURES = {}; // { 'Nom Conducteur': 'data:image/png;base64,...' } — signature auto-appliquée sur le PV et le devis quand ce conducteur est sélectionné. Vide pour l'instant (Bordeaux) : signature tactile au doigt utilisée en attendant les images.
+
+// « Mobiliers d'occasion » : copie de la grille Mobilier avec -50 % sur chaque tarif unitaire.
+// Générée depuis la liste d'origine : toute évolution des prix mobilier s'y répercute seule.
+(function(){
+  const src = PRIX_SAV.findIndex(g => g.cat === 'Mobilier');
+  if(src === -1) return;
+  const demi = v => Math.round(v * 50) / 100;   // -50 %, arrondi au centime
+  PRIX_SAV.splice(src + 1, 0, {
+    cat: "Mobiliers d'occasion",
+    items: PRIX_SAV[src].items.map(it => [it[0], demi(it[1])])
+  });
+})();
+const SIGNATURES = {}; // { 'Nom Conducteur': 'data:image/png;base64,...' } signature auto ; vide pour Bordeaux (signature tactile)
 const TVA_RATE = 0.20;   // TVA 20 %
 const KM_RATE = 1.60; // € HT / km (déplacement)
 const DEVIS_AGENCE = { nom:'Loxam Module Nouvelle-Aquitaine', adresse:'170 Avenue de Paris, 33620 Cavignac', tel:'05 57 33 69 23' };
-const DEVIS_CONTACTS = { 'Paul Cordelle':'' }; // téléphone de Paul Cordelle en attente
+const DEVIS_CONTACTS = { 'Paul Cordelle':'' }; // téléphone en attente
 
 const CHECKLIST_SECTIONS = [
   { id:'proprete', num:'1', title:'1. Propreté des modules', items:[
@@ -457,6 +489,7 @@ const CHECKLIST_SECTIONS = [
 ];
 
 function mobilierActif(i){ const it = state.mobilier[i]; return !!(it && it.actif); }
+function electroActif(i){ const it = state.mobilier[i]; return !!(it && it.actif); }
 const MOBILIER_ITEMS = ['Table(s)','Chaise(s)','Chaise(s) tissu','Armoire(s) vestiaire','Banc(s)','Armoire(s) bureau','Caisson(s)'];
 const ELECTRO_ITEMS = ['Électroménager'];
 const ELECTRO_OPTS = [ {v:'livre', l:'Livré'}, {v:'non_livre', l:'Non livré'} ];
@@ -521,7 +554,13 @@ async function loadDraft(){
       if(!Array.isArray(state.reserves.photos)) state.reserves.photos=[];
       state.reserves.lignes = resNormalise(state.reserves.lignes);
       if(!state.reserves.lignes.length) state.reserves.lignes = [{t:'',photos:[]}];
-      ELECTRO_ITEMS.forEach(i=>{ if(!state.mobilier[i]) state.mobilier[i] = { actif:false, qty:'', statuses:[], obs:'', photos:[] }; });
+      ELECTRO_ITEMS.forEach(i=>{
+        const it = state.mobilier[i];
+        if(!it){ state.mobilier[i] = { actif:false, qty:'', statuses:[], obs:'', photos:[] }; return; }
+        if(typeof it.actif !== 'boolean'){
+          it.actif = !!((it.statuses && it.statuses.length) || String(it.obs||'').trim() || (it.photos && it.photos.length));
+        }
+      });
       // Chapitre 2 allégé : on écarte les lignes qui n'existent plus
       {
         const clesValides = {};
@@ -529,7 +568,7 @@ async function loadDraft(){
         Object.keys(state.checklist).forEach(k=>{ if(!clesValides[k]) delete state.checklist[k]; });
       }
       // Mobilier : les anciennes fiches n'ont pas de drapeau « actif »
-      MOBILIER_ITEMS.concat(ELECTRO_ITEMS).forEach(i=>{
+      MOBILIER_ITEMS.forEach(i=>{
         const it = state.mobilier[i];
         if(!it){ state.mobilier[i] = { actif:false, qty:'', statuses:[], obs:'', photos:[] }; return; }
         if(typeof it.actif !== 'boolean'){
@@ -590,9 +629,10 @@ function el(tag, attrs={}, ...children){
 }
 
 // Paires exclusives : cocher l'un décoche l'autre (max 2 cases par ligne : état + réserve)
+const STATUS_GROUPES = [ ['ok','neutre','nok'], ['neuf','occasion'], ['avec_reserve','sans_reserve'], ['livre','non_livre'] ];
 const STATUS_PAIRES = { ok:'nok', nok:'ok', neuf:'occasion', occasion:'neuf',
                         avec_reserve:'sans_reserve', sans_reserve:'avec_reserve',
-                        livre:'non_livre', non_livre:'livre' };
+                        livre:'non_livre', non_livre:'livre' };   // conservé pour compatibilité
 
 function statusCheckRow(keyId, statuses, onToggle, opts){
   const row = el('div',{class:'radio-row'});
@@ -602,11 +642,11 @@ function statusCheckRow(keyId, statuses, onToggle, opts){
     const input = el('input',{type:'checkbox', id, ...(checked?{checked:'checked'}:{}) });
     input.addEventListener('change', ()=>{
       if(input.checked){
-        const autre = STATUS_PAIRES[opt.v];
-        if(autre){
+        const groupe = STATUS_GROUPES.find(g=> g.includes(opt.v)) || [];
+        groupe.filter(v=> v !== opt.v).forEach(autre=>{
           const sib = row.querySelector('input[id="'+keyId+'-'+autre+'"]');
           if(sib && sib.checked){ sib.checked = false; onToggle(autre, false); }
-        }
+        });
       }
       onToggle(opt.v, input.checked);
     });
@@ -712,7 +752,7 @@ function renderChecklistItem(key, storeObj, showQty, opts, toggleable){
   }
   // Pour les chapitres à smiley : les cases "Avec/Sans réserve" ne s'affichent
   // que si le smiley "pas content" (nok) est sélectionné.
-  const aSmiley = (opts||STATUS_OPTS).some(o=> o.v==='ok' || o.v==='nok');
+  const aSmiley = (opts||STATUS_OPTS).some(o=> o.v==='ok' || o.v==='neutre' || o.v==='nok');
   // Pour le mobilier (Neuf/Occasion) : les cases réserve n'apparaissent que si "Occasion".
   const aNeufOccasion = (opts||STATUS_OPTS).some(o=> o.v==='neuf' || o.v==='occasion');
   let optsAffichees = opts;
@@ -737,9 +777,11 @@ function renderChecklistItem(key, storeObj, showQty, opts, toggleable){
     if(on){ if(!data.statuses.includes(v)) data.statuses.push(v); }
     else { data.statuses = data.statuses.filter(x=>x!==v); }
     // Recalcule l'affichage des cases réserve quand on change de smiley ou de Neuf/Occasion
-    if(v==='ok' || v==='nok' || v==='neuf' || v==='occasion'){ updateProgress(); renderAll(); return; }
+    if(v==='ok' || v==='neutre' || v==='nok' || v==='neuf' || v==='occasion'){ updateProgress(); renderAll(); return; }
     updateProgress();
   }, optsAffichees));
+  // Mobilier : ni observation ni photo / galerie (seules la quantité et l'état sont saisis)
+  if(toggleable && MOBILIER_ITEMS.indexOf(key) !== -1) return item;
   item.append(el('div',{class:'item-obs'},
     el('input',{type:'text', placeholder:'Observation (optionnel)', value:data.obs,
       oninput:(e)=>{ data.obs = e.target.value; } })
@@ -860,19 +902,14 @@ function renderInfoSection(){
     SOUS_TRAITANTS.forEach(o=> sel.append(el('option',{value:o, ...(state.meta.sousTraitant===o?{selected:'selected'}:{})}, o)));
     if(state.meta.sousTraitant && !SOUS_TRAITANTS.includes(state.meta.sousTraitant) && state.meta.sousTraitant!=='__autre')
       sel.append(el('option',{value:state.meta.sousTraitant, selected:'selected'}, state.meta.sousTraitant));
-    sel.append(el('option', state.meta.sousTraitant==='__autre'?{value:'__autre',selected:'selected'}:{value:'__autre'}, 'Autre…'));
-    const field = el('div',{class:'field'}, el('label','Sous-traitant'), sel);
-    return field;
+    sel.append(el('option', state.meta.sousTraitant==='__autre'?{value:'__autre',selected:'selected'}:{value:'__autre'}, 'Autre\u2026'));
+    const fld = el('div',{class:'field'}, el('label','Sous-traitant'), sel);
+    if(state.meta.sousTraitant==='__autre'){
+      fld.append(el('input',{type:'text', placeholder:"Nom de l'entreprise", value:state.meta.sousTraitantAutre||'',
+        oninput:(e)=>{ state.meta.sousTraitantAutre=e.target.value; syncSousTraitant(); }}));
+    }
+    return fld;
   })());
-  if(state.meta.sousTraitant==='__autre'){
-    infoGrid.append((()=>{
-      const inp = el('input',{type:'text', value:state.meta.sousTraitantAutre||'',
-        placeholder:"Nom du sous-traitant",
-        oninput:(e)=>{ state.meta.sousTraitantAutre=e.target.value; },
-        onchange:()=>{ syncSousTraitant(); renderAll(); }});
-      return el('div',{class:'field'}, el('label','Préciser le sous-traitant'), inp);
-    })());
-  }
   // Civilité (droite, en paire avec Sous-traitant)
   infoGrid.append((()=>{
     const sel = el('select',{onchange:(e)=>{ state.meta.civilite=e.target.value; }});
@@ -1258,16 +1295,16 @@ function renderAll(){
 function updateProgress(){
   const mobCount = [];
   MOBILIER_ITEMS.forEach(i=>{ if(mobilierActif(i)) mobCount.push(state.mobilier[i]); });
-  ELECTRO_ITEMS.forEach(i=>{ if(mobilierActif(i)) mobCount.push(state.mobilier[i]); });
+  ELECTRO_ITEMS.forEach(i=>{ if(electroActif(i)) mobCount.push(state.mobilier[i]); });
   const all = Object.values(state.checklist).concat(mobCount);
   const done = all.filter(i=>i.statuses && i.statuses.length).length;
   const pct = all.length ? Math.round((done/all.length)*100) : 0;
   document.getElementById('progressFill').style.width = pct+'%';
 }
 // ---------- PDF EXPORT ----------
-const STATUS_LABEL = {ok:'Conforme', nok:'Non conforme', neuf:'Neuf', occasion:'Occasion', avec_reserve:'Avec réserve', sans_reserve:'Sans réserve'};
+const STATUS_LABEL = {ok:'Conforme', neutre:'Neutre', nok:'Non conforme', neuf:'Neuf', occasion:'Occasion', avec_reserve:'Avec réserve', sans_reserve:'Sans réserve'};
 const STATUS_PDF_COLORS = {
-  ok:[30,158,90], nok:[198,54,46], neuf:[30,158,90], occasion:[44,111,176], avec_reserve:[198,54,46], sans_reserve:[136,145,160]
+  ok:[30,158,90], neutre:[242,140,27], nok:[198,54,46], neuf:[30,158,90], occasion:[44,111,176], avec_reserve:[198,54,46], sans_reserve:[136,145,160]
 };
 
 function renderDevisSection(){
@@ -1407,7 +1444,7 @@ function importReservesDansDevis(){
     if(bad.length) out.push('- '+i+' ('+bad.map(b=>lbl[b]).join(', ')+')'+(it.obs ? ' : '+it.obs : ''));
   }));
   Object.entries(state.mobilier).forEach(([i,it])=>{
-    if((MOBILIER_ITEMS.indexOf(i) !== -1 || ELECTRO_ITEMS.indexOf(i) !== -1) && !mobilierActif(i)) return;
+    if(MOBILIER_ITEMS.indexOf(i) !== -1 && !mobilierActif(i)) return;
     const bad = (it.statuses||[]).filter(x=> x==='avec_reserve');
     if(bad.length) out.push('- '+i+' (avec r\u00e9serve)'+(it.obs ? ' : '+it.obs : ''));
   });
@@ -1687,6 +1724,7 @@ async function generatePDF(){
   }
   function colColor(c){
     if(c.smiley === true) return [30,158,90];
+    if(c.smiley === 'neutre') return [242,140,27];
     if(c.smiley === false) return [198,54,46];
     const t = ((c.t2 ? c.t2.join(' ') : (c.t||''))+'').toUpperCase();
     if(t.indexOf('NEUF')>-1) return [30,158,90];
@@ -1699,7 +1737,9 @@ async function generatePDF(){
     doc.circle(cx, cy, r, 'S');
     doc.circle(cx-r*0.36, cy-r*0.3, r*0.16, 'F');
     doc.circle(cx+r*0.36, cy-r*0.3, r*0.16, 'F');
-    if(happy){
+    if(happy === 'neutre'){
+      doc.line(cx-r*0.45, cy+r*0.45, cx+r*0.45, cy+r*0.45);
+    } else if(happy){
       doc.lines([[r*0.25, r*0.42, r*0.65, r*0.42, r*0.9, 0]], cx-r*0.45, cy+r*0.12, [1,1], 'S');
     } else {
       doc.lines([[r*0.25, -r*0.42, r*0.65, -r*0.42, r*0.9, 0]], cx-r*0.45, cy+r*0.5, [1,1], 'S');
@@ -1751,11 +1791,8 @@ async function generatePDF(){
         doc.text(c.t2[0], x+c.w/2, yy+10, {align:'center'});
         doc.text(c.t2[1], x+c.w/2, yy+19, {align:'center'});
       } else {
-        doc.setFont('helvetica','bold');
-        let fs = 8.2;
-        doc.setFontSize(fs);
-        while(fs > 6 && doc.getTextWidth(c.t) > c.w - 6){ fs -= 0.2; doc.setFontSize(fs); }
-        doc.setTextColor(255);
+        doc.setFont('helvetica','bold'); doc.setFontSize(8.2); doc.setTextColor(255);
+        let fs=8.2; while(fs>6 && doc.getTextWidth(c.t)>c.w-6){ fs-=0.2; doc.setFontSize(fs); }
         doc.text(c.t, x+c.w/2, yy+15.5, {align:'center'});
       }
       x += c.w;
@@ -1800,9 +1837,7 @@ async function generatePDF(){
           } else {
             dotted(x+6, yy+15, c.w-12);
           }
-        } else if(c.condOn===undefined || r.checks[c.condOn]){
-          // Colonne conditionnelle (ex: Avec/Sans réserve) : n'affiche la case que si la
-          // condition de la ligne est remplie (Occasion coché en ch.3, "pas content" en ch.1/2).
+        } else {
           checkbox(x + c.w/2 - 5, yy + rh/2 - 5, 10, !!r.checks[c.k], colColor(c));
         }
         x += c.w;
@@ -1863,13 +1898,13 @@ async function generatePDF(){
 
   // Chapitres 1 & 2 (smileys)
   const colsSmiley = estSortant() ? [
-    {w:190, t:'Élément'}, {w:56, smiley:true, k:0}, {w:56, smiley:false, k:1},
-    {w:201, t:'OBSERVATIONS', isObs:true}
+    {w:160, t:'Élément'}, {w:48, smiley:true, k:0}, {w:48, smiley:'neutre', k:1}, {w:48, smiley:false, k:2},
+    {w:199, t:'OBSERVATIONS', isObs:true}
   ] : [
-    {w:150, t:'Élément'}, {w:46, smiley:true, k:0}, {w:46, smiley:false, k:1},
-    {w:52, t2:['AVEC','RÉSERVE'], k:2, condOn:1}, {w:52, t2:['SANS','RÉSERVE'], k:3, condOn:1}, {w:157, t:'OBSERVATIONS', isObs:true}
+    {w:130, t:'Élément'}, {w:42, smiley:true, k:0}, {w:42, smiley:'neutre', k:1}, {w:42, smiley:false, k:2},
+    {w:52, t2:['AVEC','RÉSERVE'], k:3}, {w:52, t2:['SANS','RÉSERVE'], k:4}, {w:143, t:'OBSERVATIONS', isObs:true}
   ];
-  const stKeys = ['ok','nok','avec_reserve','sans_reserve'];
+  const stKeys = ['ok','neutre','nok','avec_reserve','sans_reserve'];
   function rowsFor(sec){
     const rows = sec.items.map(i=>{
       const it = state.checklist[sec.id+'|'+i] || {statuses:[],obs:''};
@@ -1910,17 +1945,17 @@ async function generatePDF(){
 
   const colsMob = estSortant() ? [
     {w:150, t:'Mobilier / accessoire'}, {w:60, t:'QUANTITÉ', isQty:true},
-    {w:56, smiley:true, k:0}, {w:56, smiley:false, k:1},
-    {w:181, t:'OBSERVATIONS', isObs:true}
+    {w:48, smiley:true, k:0}, {w:48, smiley:'neutre', k:1}, {w:48, smiley:false, k:2},
+    {w:149, t:'OBSERVATIONS', isObs:true}
   ] : [
     {w:118, t:'Mobilier / accessoire'}, {w:52, t:'QUANTITÉ', isQty:true},
     {w:44, t:'NEUF', k:0}, {w:44, t:'OCCASION', k:1},
-    {w:44, t2:['AVEC','RÉS.'], k:2, condOn:1}, {w:44, t2:['SANS','RÉS.'], k:3, condOn:1}, {w:157, t:'OBSERVATIONS', isObs:true}
+    {w:44, t2:['AVEC','RÉS.'], k:2}, {w:44, t2:['SANS','RÉS.'], k:3}, {w:157, t:'OBSERVATIONS', isObs:true}
   ];
-  const mobKeys = estSortant() ? ['ok','nok'] : ['neuf','occasion','avec_reserve','sans_reserve'];
+  const mobKeys = estSortant() ? ['ok','neutre','nok'] : ['neuf','occasion','avec_reserve','sans_reserve'];
   const mobRows = MOBILIER_ITEMS.filter(i=> mobilierActif(i)).map(i=>{
     const it = state.mobilier[i] || {qty:'',statuses:[],obs:''};
-    return { name:i, qty:it.qty, obs:it.obs, checks: mobKeys.map(k=> (it.statuses||[]).includes(k)) };
+    return { name:i, qty:it.qty, obs:'', checks: mobKeys.map(k=> (it.statuses||[]).includes(k)) };
   });
   if(mobRows.length){
     y = statusTable(y, colsMob, mobRows);
@@ -1928,7 +1963,7 @@ async function generatePDF(){
   }
 
   // Électroménager : colonnes Livré / Non livré
-  const electroRows = ELECTRO_ITEMS.filter(i=> mobilierActif(i)).map(i=>{
+  const electroRows = ELECTRO_ITEMS.filter(i=> electroActif(i)).map(i=>{
     const it = state.mobilier[i] || {statuses:[],obs:''};
     return { name:i, obs:it.obs, checks: ['livre','non_livre'].map(k=> (it.statuses||[]).includes(k)) };
   });   // affiché seulement si la case Électroménager est cochée
@@ -2073,6 +2108,8 @@ async function generatePDF(){
   if(!estSortant()){
   doc.setFont('helvetica','bolditalic'); doc.setFontSize(9.5);
   const noticeLines = doc.splitTextToSize("En cas de vente, la notice d'entretien et de maintenance est remise au client.", 326);
+  // Garde-fou : la notice ne doit jamais chevaucher le pied de page (saut de page si besoin)
+  if(y + Math.max(1, noticeLines.length) * 13 + 14 > MAXY){ y = newPage(); doc.setFont('helvetica','bolditalic'); doc.setFontSize(9.5); }
   doc.text(noticeLines, M, y);
   const wNC = doc.getTextWidth('Non concerné');
   const xNC = W - M - wNC - 16;
@@ -2173,13 +2210,9 @@ async function generatePDF(){
     const it = state.checklist[s.id+'|'+i];
     ((it && it.photos) || []).forEach(p=> annex.push({label:i, src:p, obs:(it&&it.obs)||'', reserve:aReserve(it)}));
   }));
-  MOBILIER_ITEMS.forEach(i=>{
-    if(!mobilierActif(i)) return;
-    const it = state.mobilier[i];
-    ((it && it.photos) || []).forEach(p=> annex.push({label:i, src:p, obs:(it&&it.obs)||'', reserve:aReserve(it)}));
-  });
+  // Mobilier : plus de photos (les anciennes éventuelles ne sont plus reprises)
   ELECTRO_ITEMS.forEach(i=>{
-    if(!mobilierActif(i)) return;
+    if(!electroActif(i)) return;
     const it = state.mobilier[i];
     ((it && it.photos) || []).forEach(p=> annex.push({label:i, src:p, obs:(it&&it.obs)||'', reserve:false}));
   });
@@ -2233,13 +2266,17 @@ async function generatePDF(){
 
       // En-tête : nom + badge RÉSERVE (badge toujours au même endroit)
       doc.setFont('helvetica','bold'); doc.setFontSize(8.7); doc.setTextColor(17,24,39);
-      const badgeW = 52;
+      // État des lieux sortant : les encadrés rouges portent « DÉGRADATION » (et non « RÉSERVE »)
+      const badgeTxt = (state.meta.type === 'sortant') ? 'DÉGRADATION' : 'RÉSERVE';
+      doc.setFont('helvetica','bold'); doc.setFontSize(7);
+      const badgeW = Math.ceil(doc.getTextWidth(badgeTxt)) + 14;     // largeur ajustée au texte
+      doc.setFont('helvetica','bold'); doc.setFontSize(8.7); doc.setTextColor(17,24,39);
       doc.text(String(ph.label), px+7, cy+12, {maxWidth: colW - badgeW - 16});
       if(ph.reserve){
         const bx = px + colW - badgeW - 6, by = cy + 4;
         doc.setFillColor(RED[0],RED[1],RED[2]); doc.roundedRect(bx, by, badgeW, 12, 3, 3, 'F');
         doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(255,255,255);
-        doc.text('RÉSERVE', bx + badgeW/2, by+8.3, {align:'center'});
+        doc.text(badgeTxt, bx + badgeW/2, by+8.3, {align:'center'});
         doc.setTextColor(17,24,39);
       }
 
